@@ -177,24 +177,28 @@ namespace HLSDownloader
         {
             var index = 0;
             progressBar.Value = 0;
-            List<byte> file = new List<byte>();
             var filePieceCount = Datas.Count;
+            var path = Directory.GetCurrentDirectory() + "/video.ts";
+
+            FileStream fs = new FileStream(path, FileMode.Create);
+
             foreach (var data in Datas)
             {
                 SetStatusLabel("Parçalar Birleştiriliyor.. " + index + "/" + filePieceCount);
                 byte[] value;
                 _ = Datas.TryGetValue(index, out value);
-                file = file.Concat(value).ToList();
+               fs.Write(value,0,value.Length);
+
                 index++;
                 PerformStep();
                 CalculatePercent(true);
             }
 
-            var path = Directory.GetCurrentDirectory() + "/video.ts";
-
+            
+            
             try
             {
-                File.WriteAllBytes(path, file.ToArray());
+                fs.Close();
                 SetStatusLabel("FINISHED & SAVED");
                 MessageBox.Show($"Dosya {path} yoluna kaydedildi.", "Bilgi", MessageBoxButtons.OK,
                     MessageBoxIcon.Information);
