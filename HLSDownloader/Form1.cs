@@ -19,7 +19,7 @@ namespace HLSDownloader
     public partial class Form1 : Form
     {
         private List<Segment> segments = new List<Segment>();
-        private Dictionary<int, byte[]> Datas=new Dictionary<int, byte[]>();
+        private Dictionary<int, byte[]> Datas = new Dictionary<int, byte[]>();
         private static List<Thread> threads = new List<Thread>();
         private WebClient client;
         private string baseUrl;
@@ -73,7 +73,7 @@ namespace HLSDownloader
 
                 if (threadCountNumericUpDown.Value <= 0)
                 {
-                    MessageBox.Show("Thread Sayısı 0 dan az veya 10 dan fazla olamaz", "Hata",MessageBoxButtons.OK,MessageBoxIcon.Error);
+                    MessageBox.Show("Thread Sayısı 0 dan az veya 10 dan fazla olamaz", "Hata", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
                 else
                 {
@@ -85,7 +85,7 @@ namespace HLSDownloader
                         DownloadData();
                     }
                 }
-                
+
             }
             catch (Exception)
             {
@@ -178,7 +178,8 @@ namespace HLSDownloader
             var index = 0;
             progressBar.Value = 0;
             var filePieceCount = Datas.Count;
-            var path = Directory.GetCurrentDirectory() + "/video.ts";
+            var filename = Guid.NewGuid().ToString();
+            var path = Directory.GetCurrentDirectory() + "/" + filename + ".ts";
 
             FileStream fs = new FileStream(path, FileMode.Create);
 
@@ -187,15 +188,15 @@ namespace HLSDownloader
                 SetStatusLabel("Parçalar Birleştiriliyor.. " + index + "/" + filePieceCount);
                 byte[] value;
                 _ = Datas.TryGetValue(index, out value);
-               fs.Write(value,0,value.Length);
+                fs.Write(value, 0, value.Length);
 
                 index++;
                 PerformStep();
                 CalculatePercent(true);
             }
 
-            
-            
+
+
             try
             {
                 fs.Close();
