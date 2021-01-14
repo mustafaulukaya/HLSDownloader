@@ -8,6 +8,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Runtime.CompilerServices;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -19,10 +20,10 @@ namespace HLSDownloader
     public partial class Form1 : Form
     {
         private List<Segment> segments = new List<Segment>();
-        private Dictionary<int, byte[]> Datas = new Dictionary<int, byte[]>();
         private static List<Thread> threads = new List<Thread>();
         private WebClient client;
         private string baseUrl;
+
 
         public Form1()
         {
@@ -105,6 +106,22 @@ namespace HLSDownloader
             downloadPercent.Text = "%" + percent.ToString();
         }
 
+        private void UpdateSegments()
+        {
+            var segment = segments.First(op => !op.IsDownloadStarted && !op.IsFinished);
+
+            while (segment != null && IsChunkDownloaded(segment.Index))
+            {
+                segments.Remove(segment);
+                segment.IsDownloadStarted = true;
+                segments.Add(segment);
+                PerformStep();
+                CalculatePercent();
+                SetSegmentCompleted(segment);
+                segment = segments.First(op => !op.IsDownloadStarted && !op.IsFinished);
+            }
+        }
+
         [MethodImpl(MethodImplOptions.Synchronized)]
         private Segment GetSegment()
         {
@@ -130,6 +147,9 @@ namespace HLSDownloader
 
         private void DownloadData()
         {
+            UpdateSegments();
+
+
             Thread bgThread = new Thread(() =>
             {
                 try
@@ -143,7 +163,7 @@ namespace HLSDownloader
                             {
                                 var segmentFileUrl = baseUrl + segment.Url;
                                 var tempData = client.DownloadData(segmentFileUrl);
-                                Datas.Add(segment.Index, tempData);
+                                SaveChunk(tempData, segment.Index);
                                 PerformStep();
                                 CalculatePercent();
                                 SetSegmentCompleted(segment);
@@ -173,29 +193,55 @@ namespace HLSDownloader
                 DownloadCompleted();
         }
 
+        private bool IsDownloadStarted()
+        {
+            var directory = Directory.GetCurrentDirectory() + "/chunks/" + baseUrl.ComputeSha256Hash();
+            return Directory.Exists(directory);
+        }
+
+        private bool IsChunkDownloaded(int index)
+        {
+            var directory = Directory.GetCurrentDirectory() + "/chunks/" + baseUrl.ComputeSha256Hash();
+
+            if (!Directory.Exists(directory))
+                return false;
+
+            var path = directory + "/" + index + ".ts";
+
+            return File.Exists(path);
+        }
+
+        private void SaveChunk(byte[] data, int index)
+        {
+            var directory = Directory.GetCurrentDirectory() + "/chunks/" + baseUrl.ComputeSha256Hash();
+
+            if (!Directory.Exists(directory))
+                Directory.CreateDirectory(directory);
+
+            var path = directory + "/" + index + ".ts";
+            FileStream fs = new FileStream(path, FileMode.Create);
+            fs.Write(data, 0, data.Length);
+            fs.Close();
+        }
+
         private void DownloadCompleted()
         {
-            var index = 0;
             progressBar.Value = 0;
-            var filePieceCount = Datas.Count;
-            var filename = Guid.NewGuid().ToString();
-            var path = Directory.GetCurrentDirectory() + "/" + filename + ".ts";
+            var path = Directory.GetCurrentDirectory() + "/" + baseUrl.ComputeSha256Hash() + ".ts";
 
             FileStream fs = new FileStream(path, FileMode.Create);
 
-            foreach (var data in Datas)
-            {
-                SetStatusLabel("Parçalar Birleştiriliyor.. " + index + "/" + filePieceCount);
-                byte[] value;
-                _ = Datas.TryGetValue(index, out value);
-                fs.Write(value, 0, value.Length);
+            var directory = Directory.GetCurrentDirectory() + "/chunks/" + baseUrl.ComputeSha256Hash();
 
-                index++;
+            for (var index = 0; index < Directory.GetFiles(directory).Length; index++)
+            {
+                byte[] buffer = File.ReadAllBytes(directory + "/" + index + ".ts");
+                fs.Write(buffer, 0, buffer.Length);
                 PerformStep();
                 CalculatePercent(true);
             }
 
-
+            Directory.Delete(directory,true);
 
             try
             {
@@ -214,7 +260,6 @@ namespace HLSDownloader
             {
                 progressBar.Value = 0;
                 segments.Clear();
-                Datas.Clear();
                 foreach (var thread in threads)
                 {
                     thread.Abort();
@@ -228,12 +273,13 @@ namespace HLSDownloader
             mediaUrlTextBox.Text = "";
             progressBar.Value = 0;
             segments.Clear();
-            Datas.Clear();
             foreach (var thread in threads)
             {
                 thread.Abort();
             }
         }
+
+
     }
 
     public class Segment
@@ -242,5 +288,26 @@ namespace HLSDownloader
         public int Index { get; set; }
         public bool IsDownloadStarted { get; set; } = false;
         public bool IsFinished { get; set; } = false;
+    }
+
+    public static class StringExtensions
+    {
+        public static string ComputeSha256Hash(this string rawData)
+        {
+            // Create a SHA256   
+            using (SHA256 sha256Hash = SHA256.Create())
+            {
+                // ComputeHash - returns byte array  
+                byte[] bytes = sha256Hash.ComputeHash(Encoding.UTF8.GetBytes(rawData));
+
+                // Convert byte array to a string   
+                StringBuilder builder = new StringBuilder();
+                for (int i = 0; i < bytes.Length; i++)
+                {
+                    builder.Append(bytes[i].ToString("x2"));
+                }
+                return builder.ToString();
+            }
+        }
     }
 }
