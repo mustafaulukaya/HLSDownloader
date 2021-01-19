@@ -113,11 +113,8 @@ namespace HLSDownloader
             while (segment != null && IsChunkDownloaded(segment.Index))
             {
                 segments.Remove(segment);
-                segment.IsDownloadStarted = true;
-                segments.Add(segment);
                 PerformStep();
                 CalculatePercent();
-                SetSegmentCompleted(segment);
                 segment = segments.First(op => !op.IsDownloadStarted && !op.IsFinished);
             }
         }
