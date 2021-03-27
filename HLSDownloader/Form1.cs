@@ -276,7 +276,46 @@ namespace HLSDownloader
             }
         }
 
+        private void button_union_Click(object sender, EventArgs e)
+        {
+            progressBar.Value = 0;
+            var chunkName = textBox_chunkName.Text;
+            var path = Directory.GetCurrentDirectory() + "/" + chunkName + ".ts";
 
+            FileStream fs = new FileStream(path, FileMode.Create);
+
+            var directory = Directory.GetCurrentDirectory() + "/chunks/" + chunkName;
+
+            var fileCount = Directory.GetFiles(directory).Length;
+            progressBar.Maximum = fileCount;
+            for (var index = 0; index < fileCount; index++)
+            {
+                byte[] buffer = File.ReadAllBytes(directory + "/" + index + ".ts");
+                fs.Write(buffer, 0, buffer.Length);
+                PerformStep();
+                CalculatePercent(true);
+            }
+
+            Directory.Delete(directory, true);
+
+            try
+            {
+                fs.Close();
+                SetStatusLabel("FINISHED & SAVED");
+                MessageBox.Show($"Dosya {path} yoluna kaydedildi.", "Bilgi", MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Dosya diske kaydedilirken hata oluştu.", "Hata", MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+            }
+
+            finally
+            {
+                progressBar.Value = 0;
+            }
+        }
     }
 
     public class Segment
